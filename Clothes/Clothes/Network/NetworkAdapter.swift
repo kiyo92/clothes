@@ -23,40 +23,57 @@ class NetworkAdapter {
         self.route = route
     }
 
-    func request<T:Decodable>(with type: T.Type, completion: @escaping(T?, NetworkError?) -> Void) async {
+    func request<T:Decodable>(with type: T.Type,
+                              isRemote: Bool = true,
+                              completion: @escaping(T?, NetworkError?) -> Void) async {
 
         let requestConfigs = self.route.getRoute()
-
+        var request: URLRequest
         let session = URLSession.shared
 
-        var components = URLComponents()
-        components.scheme = "https"
-        components.host = "api.pandascore.co"
-        components.queryItems = requestConfigs.queryParameters
-        components.path = requestConfigs.path.getPath()
+        if isRemote {
 
-        guard let url = components.url else { return }
+            var components = URLComponents()
+            components.scheme = "https"
+            components.host = "host"
+            components.queryItems = requestConfigs.queryParameters
+            components.path = requestConfigs.path.getPath()
 
-        var request = URLRequest(url: url)
-        request.allHTTPHeaderFields = requestConfigs.headers
-        request.httpMethod = requestConfigs.method?.rawValue.uppercased()
+            guard let url = components.url else { return }
 
-        let response = session.dataTask(with: request) { data, response, error in
+            request = URLRequest(url: url)
+            request.allHTTPHeaderFields = requestConfigs.headers
+            request.httpMethod = requestConfigs.method?.rawValue.uppercased()
 
-            guard response != nil else {
-                completion(nil, .invalidEndpoint)
-                return
+            let response = session.dataTask(with: request) { data, response, error in
+
+                guard response != nil else {
+                    completion(nil, .invalidEndpoint)
+                    return
+                }
+
+                do {
+                    let result = try JSONDecoder().decode(T.self, from: data ?? Data())
+                    completion(result, nil)
+                } catch {
+                    completion(nil, .parsingError)
+                }
             }
 
+            response.resume()
+
+        } else {
+
             do {
-                let result = try JSONDecoder().decode(T.self, from: data ?? Data())
+
+                let data = try Data(contentsOf: URL(fileURLWithPath: requestConfigs.path.getPath()))
+                let result = try JSONDecoder().decode(T.self, from: data)
                 completion(result, nil)
             } catch {
+                
                 completion(nil, .parsingError)
             }
         }
-
-        response.resume()
     }
 
     func request(completion: @escaping(Data?, URLResponse?, Error?) -> Void) {
@@ -65,6 +82,8 @@ class NetworkAdapter {
         if let imageUrl = URL(string: requestConfigs.path.getPath()) {
             
             URLSession.shared.dataTask(with: imageUrl, completionHandler: completion).resume()
+        } else {
+            completion(nil, nil, nil)
         }
     }
 }

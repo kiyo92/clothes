@@ -26,8 +26,10 @@ class ProductPath: PathProtocol {
         switch path {
 
         case .productList:
+            
+            guard let path = Bundle.main.path(forResource: "productList", ofType: "json") else { return "" }
 
-            return "/csgo/matches/upcoming"
+            return path
         }
     }
 }
